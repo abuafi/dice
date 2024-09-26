@@ -22,6 +22,10 @@ var scene = undefined;
 var camera = undefined;
 var clock = undefined;
 var renderer = undefined;
+var renderCanvas = undefined;
+
+var ctx2d = undefined;
+var canvasTexture = undefined;
 
 function initGraphicsUniverse()
 {
@@ -33,7 +37,8 @@ function initGraphicsUniverse()
 
     renderer = new THREE.WebGLRenderer();
     renderer.setSize( window.innerWidth, window.innerHeight );
-    document.body.appendChild( renderer.domElement );
+    renderCanvas = renderer.domElement
+    document.body.appendChild( renderCanvas );
 
     var ambientLight = new THREE.AmbientLight(0xcccccc, 0.2);
     scene.add(ambientLight);
@@ -41,17 +46,21 @@ function initGraphicsUniverse()
     directionalLight.position.set(-1, 0.9, 0.4);
     scene.add(directionalLight);
     
-    // // test cube
-    // const geometry = new THREE.BoxGeometry( 1, 1, 1 );
-    // const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
-    // const cube = new THREE.Mesh( geometry, material );
-    // scene.add( cube );
-    
+    /* Canvas Texture */
+    ctx2d = document.createElement('canvas').getContext('2d');
+    ctx2d.canvas.width = window.innerWidth;
+    ctx2d.canvas.height = window.innerHeight;
+    canvasTexture = new THREE.CanvasTexture(ctx2d.canvas);
 }
 
 /* Physic objects */
 const pi = Math.PI
-var bodies = new Array();
+function deg2rad (angle) {
+    return angle * (Math.PI / 180);
+}
+
+const bodies = new Array();
+const dice = new Array();
 const axes = {
     'x': new THREE.Vector3(1, 0, 0),
     'y': new THREE.Vector3(0, 1, 0),
@@ -61,6 +70,17 @@ const axes = {
 function boxGeometryShape(width, height, depth) {
     // ------ Graphics Universe - Three.JS ------
     let geometry = new THREE.BoxGeometry(width, height, depth);
+    let uvbuf = Array()
+    for (let i = 0; i < 6; i++) {
+        let xa = i*(1/6);
+        let xb = (i+1)*(1/6);
+        uvbuf.push(xa, 1)
+        uvbuf.push(xb, 1)
+        uvbuf.push(xa, 0)
+        uvbuf.push(xb, 0)
+    }
+    uvbuf = new Float32Array(uvbuf);
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvbuf, 2))
 
     // ------ Physics Universe - Ammo.js ------
     let shape = new Ammo.btBoxShape( new Ammo.btVector3(width*0.5, height*0.5, depth*0.5) );
@@ -68,11 +88,8 @@ function boxGeometryShape(width, height, depth) {
     return [geometry, shape]
 }
 
-const loader = new OBJLoader()
-// var ico_geom = undefined
-// let obj = await loader.loadAsync("public/icosahedron.obj")
-// ico_geom = obj.children[0].geometry
 
+const EQUILATERAL_HEIGHT = Math.tan(deg2rad(60))*0.5
 function icosahedron() {
         let phi = (1.0 + Math.sqrt(5.0)) * 0.5; // golden ratio
         let a = 1.0;
@@ -130,10 +147,49 @@ function icosahedron() {
         geom.computeVertexNormals()
         geom.scale(0.75, 0.75, 0.75)
 
+        // TODO reorder index buffer so that values appear on correct side
+
+        let uvbuf = Array()
+        for (let i = 0; i < 20; i++) {
+            let xd = 1/20;
+            let xa = i*xd;
+            let xb = xa+xd;
+            
+            uvbuf.push(xa+(xd/2), 1)
+            uvbuf.push(xa, 0)
+            uvbuf.push(xb, 0)
+        }
+        uvbuf = new Float32Array(uvbuf);
+        geom.setAttribute('uv', new THREE.BufferAttribute(uvbuf, 2))
+
         return geom;
 }
 function createD20(scale, position, mass, rotation = new THREE.Euler())
 {
+    DIE_COUNTS.d20 += 1;
+    var id = 'd20_' + DIE_COUNTS.d20;
+    let ctx = document.createElement('canvas').getContext('2d');
+    let canvas = ctx.canvas
+    let cW = 100;
+    let cH = 100 * EQUILATERAL_HEIGHT;
+    canvas.width = cW * 20;
+    canvas.height = cH;
+    ctx.fillStyle = '#FFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = '50px bold sans-serif';
+    ctx.fillStyle = 'blue';
+    ctx.textAlign = "center"; // horizontal alignment
+    ctx.textBaseline = "middle"; // vertical alignment
+
+    for (let i = 0; i < 20; i++) {
+        ctx.fillText(i+1, (cW*i)+(cW/2), (3*cH/4));
+        if ([6,9].includes(i+1)) ctx.fillText('_', (cW*i)+(cW/2), (3*cH/4));
+    }
+
+    let tex = new THREE.CanvasTexture(canvas);
+    DIE_CANVASES[id] = canvas
+
     let quaternion = new THREE.Quaternion()
     quaternion = quaternion.setFromEuler(rotation)
     // let [geometry, shape] = boxGeometryShape(scale, scale, scale)
@@ -141,14 +197,16 @@ function createD20(scale, position, mass, rotation = new THREE.Euler())
     // ------ Graphics Universe - Three.JS ------
     let ico_geom = icosahedron()
 
-    var materials = Array()
-    let groups = Array()
-    for (let i = 0; i < 20; i++) {
-        materials.push(new THREE.MeshPhongMaterial({color: Math.random() * 0xffffff}))
-        groups.push({start:i*3, count:3, materialIndex:i})
-    }
-    ico_geom.groups=groups
-    let mesh = new THREE.Mesh(ico_geom, materials)
+    // var materials = Array()
+    // let groups = Array()
+    // for (let i = 0; i < 20; i++) {
+    //     materials.push(new THREE.MeshPhongMaterial({color: Math.random() * 0xffffff}))
+    //     groups.push({start:i*3, count:3, materialIndex:i})
+    // }
+    // ico_geom.groups=groups
+    let material = new THREE.MeshPhongMaterial({ map: tex });
+
+    let mesh = new THREE.Mesh(ico_geom, material)
     
     scene.add(mesh);
 
@@ -174,25 +232,58 @@ function createD20(scale, position, mass, rotation = new THREE.Euler())
     physicsUniverse.addRigidBody( RBody );
 
     mesh.userData.physicsBody = RBody;
+    mesh.userData.id = id;
 
     bodies.push(mesh);
+    dice.push(mesh);
     return mesh
 }
 
-function createCube(scale, position, mass, rotation = new THREE.Euler())
+const DIE_CANVASES = {}
+const DIE_COUNTS = {
+    'd6':0,
+    'd20':0
+}
+
+function createD6(scale, position, mass, rotation = new THREE.Euler())
 {
+    DIE_COUNTS.d6 += 1;
+    var id = 'd6_' + DIE_COUNTS.d6;
+    let ctx = document.createElement('canvas').getContext('2d');
+    let canvas = ctx.canvas
+    canvas.width = 100 * 6;
+    canvas.height = 100;
+    ctx.fillStyle = '#FFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.font = '50px bold sans-serif';
+    ctx.fillStyle = 'blue';
+    ctx.textAlign = "center"; // horizontal alignment
+    ctx.textBaseline = "middle"; // vertical alignment
+
+    for (let i = 0; i < 6; i++) {
+        ctx.fillText(i+1, 100*i+50, 50);
+        if ([6,9].includes(i+1)) ctx.fillText('_', 100*i+50, 50);
+    }
+
+    let tex = new THREE.CanvasTexture(canvas);
+    DIE_CANVASES[id] = canvas
+
     let quaternion = new THREE.Quaternion()
     quaternion = quaternion.setFromEuler(rotation)
     let [geometry, shape] = boxGeometryShape(scale, scale, scale)
     
     // ------ Graphics Universe - Three.JS ------
-    let materials = Array()
-    for (let i = 0; i < 6; i++) {
-        materials.push(new THREE.MeshPhongMaterial({color: Math.random() * 0xffffff}))
-    }
+    // let materials = Array()
+    // for (let i = 0; i < 6; i++) {
+    //     materials.push(new THREE.MeshPhongMaterial({color: Math.random() * 0xffffff}))
+    // }
+
+    let material = new THREE.MeshPhongMaterial({ map: tex });
+
     let newcube = new THREE.Mesh(
         geometry, 
-        materials);
+        material);
     newcube.position.set(position.x, position.y, position.z);
     scene.add(newcube);
 
@@ -211,7 +302,9 @@ function createCube(scale, position, mass, rotation = new THREE.Euler())
 
     physicsUniverse.addRigidBody( RBody );
     newcube.userData.physicsBody = RBody;
+    newcube.userData.id = id;
     bodies.push(newcube);
+    dice.push(newcube);
     return newcube
 }
 
@@ -314,7 +407,6 @@ function updatePhysicsUniverse( deltaTime )
     }
 }
 
-const dice = Array();
 function render()
 {
         let deltaTime = clock.getDelta();
@@ -322,6 +414,9 @@ function render()
                 
         renderer.render( scene, camera );
         requestAnimationFrame( render );
+
+        ctx2d.drawImage(renderCanvas, 0, 0)
+        canvasTexture.needsUpdate = true;
 }
 
 
@@ -333,15 +428,11 @@ function AmmoStart()
 
     createFloor()
     createDrawer()
-    let die;
-    die = createCube(1, new THREE.Vector3(0,0,0), 1, new THREE.Euler(0, 0, 0));
-    dice.push(die)
-    die = createCube(1, new THREE.Vector3(-2,0,-1), 1, new THREE.Euler(0, 0, 0));
-    dice.push(die)
-    die = createD20(1, new THREE.Vector3(2,0,1), 1, new THREE.Euler(0, 0, 0));
-    dice.push(die)
-    die = createD20(1, new THREE.Vector3(2,0,-1), 1, new THREE.Euler(0, 0, 0));
-    dice.push(die)
+    
+    createD6(1, new THREE.Vector3(0,0,0), 1, new THREE.Euler(0, 0, 0));
+    createD6(1, new THREE.Vector3(-2,0,-1), 1, new THREE.Euler(0, 0, 0));
+    createD20(1, new THREE.Vector3(2,0,1), 1, new THREE.Euler(0, 0, 0));
+    createD20(1, new THREE.Vector3(2,0,-1), 1, new THREE.Euler(0, 0, 0));
 
     document.addEventListener('keydown', function(event) {
         if(event.key == ' ') {
@@ -350,8 +441,15 @@ function AmmoStart()
                 let body = die.userData.physicsBody;
                 let position = body.getWorldTransform().getOrigin()
                 body.activate()
-                body.applyCentralImpulse(new Ammo.btVector3(-position.x(), 30, -position.z()))
-                body.applyTorqueImpulse(new Ammo.btVector3(5, 5, 5))
+                let xCen = (Math.random() * 0.5) - 0.25 - position.x();
+                let yCen = (Math.random() * 5  ) - 2.5  + 30;
+                let zCen = (Math.random() * 0.5) - 0.25 - position.z();
+
+                let xTor = (Math.random() * 10 ) - 5;
+                let yTor = (Math.random() * 10 ) - 5;
+                let zTor = (Math.random() * 10 ) - 5;
+                body.applyCentralImpulse(new Ammo.btVector3(xCen, yCen, zCen));
+                body.applyTorqueImpulse(new Ammo.btVector3(xTor, yTor, zTor));
             }
         }
     });

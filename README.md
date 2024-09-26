@@ -1,9 +1,9 @@
 # TODO:
 - Set side texture
     - Adjust dice hue?
-    - Set side value on top of texture
     - Customize side values?
-    - UV map vs multiple materials
+    - Fix side value
+- Die model viewer
 - Change drawer model
 - Find dice value after roll
 - Add GitHub Pages to CI
