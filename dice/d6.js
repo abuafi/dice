@@ -1,7 +1,8 @@
-import { Die } from "./die.js";
+import { Die, DieSide } from "./die.js";
 import * as THREE from 'three';
 
 export class D6 extends Die {
+    numSides() { return 6 }
 
     setShape() {
         this.shape = new Ammo.btBoxShape( new Ammo.btVector3(this.scale*0.5, this.scale*0.5, this.scale*0.5) );
@@ -41,5 +42,26 @@ export class D6 extends Die {
         }
     
         this.texture = new THREE.CanvasTexture(canvas);
+    }
+
+    setSides() {
+        let numSides = this.numSides()
+        for (let i = 0; i < numSides; i++) {
+            let vertices = this.faceVertices(i)
+            let center = new THREE.Vector3()
+            let temp = new THREE.Vector3()
+            for (let vertex of vertices) center.add(temp.set(...vertex))
+            center.divideScalar(vertices.length)
+
+            let top = new THREE.Vector3(...vertices[0])
+            top.sub(temp.set(...vertices[2]))
+            top.divideScalar(2)
+            top.add(temp.set(...vertices[2]))
+            
+            let side = new DieSide(center, top, this)
+            side.initTransform()
+            side.value = i+1
+            this.sides.push(side)
+        }
     }
 }

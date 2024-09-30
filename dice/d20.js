@@ -1,4 +1,4 @@
-import { Die } from "./die.js";
+import { Die, DieSide } from "./die.js";
 import * as THREE from 'three';
 
 function deg2rad (angle) {
@@ -7,6 +7,7 @@ function deg2rad (angle) {
 
 const EQUILATERAL_HEIGHT = Math.tan(deg2rad(60))*0.5
 export class D20 extends Die {
+    numSides() { return 20 }
 
     setGeom() { 
         let phi = (1.0 + Math.sqrt(5.0)) * 0.5; // golden ratio
@@ -102,5 +103,23 @@ export class D20 extends Die {
         }
 
         this.texture = new THREE.CanvasTexture(canvas);
+    }
+
+    setSides() {
+        let numSides = this.numSides()
+        for (let i = 0; i < numSides; i++) {
+            let vertices = this.faceVertices(i)
+            let center = new THREE.Vector3()
+            let temp = new THREE.Vector3()
+            for (let vertex of vertices) center.add(temp.set(...vertex))
+            center.divideScalar(vertices.length)
+
+            let top = new THREE.Vector3(...vertices[0])
+            
+            let side = new DieSide(center, top, this)
+            side.initTransform()
+            side.value = i+1
+            this.sides.push(side)
+        }
     }
 }

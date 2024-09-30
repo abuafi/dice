@@ -4,6 +4,7 @@ import { D6 } from './dice/d6.js';
 import { D20 } from './dice/d20.js';
 import { World } from './dice/world.js';
 import { D12 } from './dice/d12.js';
+import { Item } from './dice/item.js'
 
 /* Physics objects */
 const pi = Math.PI
@@ -44,7 +45,7 @@ function createFloor() {
     let RBody_Info = new Ammo.btRigidBodyConstructionInfo(0, defaultMotionState, structColShape);
     let RBody = new Ammo.btRigidBody( RBody_Info );
 
-    return [RBody]
+    return new Item(RBody)
 }
 
 function createDrawer() {
@@ -97,7 +98,7 @@ function createDrawer() {
     let RBody_Info = new Ammo.btRigidBodyConstructionInfo(mass, defaultMotionState, compoundShape);
     let RBody = new Ammo.btRigidBody( RBody_Info );
 
-    return [RBody, drawer]
+    return new Item(RBody, drawer)
 }
 
 var world = undefined
@@ -105,12 +106,12 @@ function AmmoStart()
 {
     world = new World()
     
-    world.addPhysicsObject(...createFloor())
-    world.addPhysicsObject(...createDrawer())
+    world.addItem(createFloor())
+    world.addItem(createDrawer())
     
-    new D6(world, 1, 1, new THREE.Vector3(-2, 0, 0))
-    new D20(world, 1, 1, new THREE.Vector3(0, 0, 0))
-    new D12(world, 0.6, 1, new THREE.Vector3(2, 0, 0))
+    world.addDie(new D6(1, 1, new THREE.Vector3(0, 0, 3)))
+    world.addDie(new D20(1, 1, new THREE.Vector3(0, 0, 0)))
+    world.addDie(new D12(0.6, 1, new THREE.Vector3(0, 0, -3)))
 
     document.addEventListener('keydown', event => {
         if(event.key == ' ') world.rollDice()

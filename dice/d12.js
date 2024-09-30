@@ -1,4 +1,4 @@
-import { Die } from "./die.js";
+import { Die, DieSide } from "./die.js";
 import * as THREE from 'three';
 
 function deg2rad (angle) {
@@ -10,6 +10,7 @@ const PENTAGON_WING_SPAN = 1.618
 const PENTAGON_HEIGHT = 1.539
 const r = 0.8507
 export class D12 extends Die {
+    numSides() { return 12 }
 
     setGeom() { 
         this.geom = new THREE.DodecahedronGeometry(this.scale);
@@ -60,5 +61,23 @@ export class D12 extends Die {
             if ([6,9].includes(i+1)) ctx.fillText('_', (cW*i)+(cW/2), (3*cH/5));
         }
         this.texture = new THREE.CanvasTexture(canvas);
+    }
+
+    setSides() {
+        let numSides = this.numSides()
+        for (let i = 0; i < numSides; i++) {
+            let vertices = this.faceVertices(i)
+            let center = new THREE.Vector3()
+            let temp = new THREE.Vector3()
+            for (let vertex of vertices) center.add(temp.set(...vertex))
+            center.divideScalar(vertices.length)
+
+            let top = new THREE.Vector3(...vertices[0])
+            
+            let side = new DieSide(center, top, this)
+            side.initTransform()
+            side.value = i+1
+            this.sides.push(side)
+        }
     }
 }

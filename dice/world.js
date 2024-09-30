@@ -6,7 +6,7 @@ export class World {
     clock;
     renderer;
     scene;
-    physicsMeshes = Array();
+    items = Array();
     dice = Array();
 
     rollTime
@@ -17,27 +17,20 @@ export class World {
         this.initPhysicsUniverse()
     }
 
-    register(die) {
-        this.physicsUniverse.addRigidBody( die.body );
-
-        die.mesh.userData.physicsBody = die.body
-        this.physicsMeshes.push( die.mesh );
-
+    addDie(die) {
         this.dice.push( die );
-        this.scene.add( die.mesh );
+        this.addItem(die)
+        return die
     }
 
-    addPhysicsObject(body, mesh = undefined) {
-        if (mesh) {
-            mesh.userData.physicsBody = body
-            this.scene.add( mesh );
-            this.physicsMeshes.push( mesh );
-        }
-        this.physicsUniverse.addRigidBody( body );
+    addItem(item) {
+        item.register(this)
+        return item
     }
 
     rollDice() {
         this.rollTime = Date.now()
+        console.log('Roll!')
         for (let die of this.dice) {
             // let inertia = new Ammo.btVector3( 0, 0, 0 )
             // die.shape.calculateLocalInertia(die.mass, inertia)
@@ -46,7 +39,7 @@ export class World {
 
             let body = die.body;
             let position = body.getWorldTransform().getOrigin()
-            body.activate()
+            body.forceActivationState(1)
             let xCen = (Math.random() * 0.5) - 0.25 - position.x();
             let yCen = (Math.random() * 5  ) - 2.5  + 30;
             let zCen = (Math.random() * 0.5) - 0.25 - position.z();
@@ -75,19 +68,8 @@ export class World {
         //     }
         // }
         this.physicsUniverse.stepSimulation( deltaTime, 10 );
-        for ( let i = 0; i < this.physicsMeshes.length; i++ ){
-            let Graphics_Obj = this.physicsMeshes[ i ];
-            let Physics_Obj = Graphics_Obj.userData.physicsBody;
-            let motionState = Physics_Obj.getMotionState();
-            if (motionState)
-            {
-                let transform = new Ammo.btTransform();
-                motionState.getWorldTransform( transform );
-                let new_pos = transform.getOrigin();
-                let new_qua = transform.getRotation();
-                Graphics_Obj.position.set( new_pos.x(), new_pos.y(), new_pos.z() );
-                Graphics_Obj.quaternion.set( new_qua.x(), new_qua.y(), new_qua.z(), new_qua.w() );
-            }
+        for ( let item of this.items ){
+            item.physicsUpdate()
         }
     }
 
